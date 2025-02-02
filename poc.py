@@ -39,33 +39,41 @@ class InteractionStore:
     """
     A class to manage user-product interaction data using a matrix.
     """
-    def __init__(self, num_users, num_products):
-        self.matrix = np.zeros((num_users, num_products))
+    def __init__(self, max_users, num_products):
+        self.matrix = np.zeros((max_users, num_products))
+        self.user_index_map = {}  # Mapping real user IDs to matrix indices
+        self.next_available_index = 0
+
+    def add_user(self, user_id):
+        """Assigns a user ID to an available matrix index."""
+        if user_id not in self.user_index_map:
+            if self.next_available_index < self.matrix.shape[0]:
+                self.user_index_map[user_id] = self.next_available_index
+                self.next_available_index += 1
+            else:
+                print(f"Warning: Maximum users reached, cannot add user {user_id}.")
 
     def update_interaction(self, user_id, product_id, value):
-        """
-        Updates the rating for a specific user-product interaction.
-        :param user_id: ID of the user.
-        :param product_id: ID of the product.
-        :param value: Interaction value or rating.
-        """
-        self.matrix[user_id][product_id] = value
+        """Logs user-product interactions if the user exists."""
+        if user_id in self.user_index_map:
+            matrix_index = self.user_index_map[user_id]
+            self.matrix[matrix_index][product_id] = value
+        else:
+            print(f"Warning: User {user_id} does not exist in interaction store.")
 
     def get_interaction(self, user_id, product_id):
-        """
-        Retrieves the interaction value for a specific user-product interaction.
-        :param user_id: ID of the user.
-        :param product_id: ID of the product.
-        :return: Interaction value or rating.
-        """
-        return self.matrix[user_id][product_id]
+        """Retrieves the interaction value if the user exists."""
+        if user_id in self.user_index_map:
+            matrix_index = self.user_index_map[user_id]
+            return self.matrix[matrix_index][product_id]
+        return 0
 
+# KD-Tree for Product Similarity
 class ProductMatcher:
     """
     A class to find similar products using KD-Tree.
     """
     def __init__(self, product_features):
-        # Initialize a data structure to store product features for similarity queries.
         self.tree = KDTree(product_features)
 
     def find_similar_products(self, query_features, k=5):
@@ -85,16 +93,33 @@ if __name__ == "__main__":
     user_registry = UserRegistry()
     user_registry.add_user(101, {"name": "Alice", "preferences": ["electronics", "books"]})
     user_registry.add_user(102, {"name": "Bob", "preferences": ["clothing", "shoes"]})
-    print("Retrieving User 101:", user_registry.get_user(101))
-    print("Registered Users:")
+
+    print("Registered Users (Before Deletion):")
+    for user_id, info in user_registry.user_records.items():
+        print(f"User ID: {user_id}, Info: {info}")
+
+    # Remove User 101
+    user_registry.delete_user(101)
+
+    print("Registered Users (After Deletion of User 101):")
     for user_id, info in user_registry.user_records.items():
         print(f"User ID: {user_id}, Info: {info}")
 
     # InteractionStore Test
     print("\n--- InteractionStore Test ---")
-    interaction_store = InteractionStore(num_users=5, num_products=5)
-    interaction_store.update_interaction(0, 2, 4.5)  # User 0 rates Product 2 with a 4.5 rating
-    print("Interaction Value (User 0, Product 2):", interaction_store.get_interaction(0, 2))
+    interaction_store = InteractionStore(max_users=5, num_products=5)
+
+    # Register Users
+    interaction_store.add_user(102)  # Register Bob in the interaction store
+
+    # Test Storing an Interaction
+    interaction_store.update_interaction(102, 2, 4.5)  # Bob rates Product 2 with 4.5
+    interaction_store.update_interaction(101, 3, 3.0)  # Alice was removed, should warn
+
+    # Retrieve stored and non-existing interactions
+    print("Interaction Value (User 102, Product 2):", interaction_store.get_interaction(102, 2))
+    print("Interaction Value (User 101, Product 3 - No Interaction):", interaction_store.get_interaction(101, 3))
+
     print("User-Product Interaction Matrix:")
     print(interaction_store.matrix)
 
